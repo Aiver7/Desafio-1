@@ -69,3 +69,29 @@ void descomprimirLZ78(const unsigned char* comprimido, int longComp,
     diccionario[0].cadena[0] = '\0';
     diccionario[0].longitud = 0;
     tamDiccionario++;
+
+    while (i < longComp - 2) {
+        int indice = (comprimido[i] << 8) | comprimido[i + 1];
+        i += 2;
+
+        if (i >= longComp) break;
+
+        unsigned char nuevoChar = comprimido[i];
+        i++;
+
+        if (indice == 0) {
+            salida[longSalida++] = nuevoChar;
+
+            diccionario[tamDiccionario].cadena = new unsigned char[2];
+            diccionario[tamDiccionario].cadena[0] = nuevoChar;
+            diccionario[tamDiccionario].cadena[1] = '\0';
+            diccionario[tamDiccionario].longitud = 1;
+            tamDiccionario++;
+        } else if (indice < tamDiccionario) {
+            int longPrefijo = diccionario[indice].longitud;
+
+            for (int j = 0; j < longPrefijo; j++) {
+                salida[longSalida++] = diccionario[indice].cadena[j];
+            }
+
+            salida[longSalida++] = nuevoChar;
