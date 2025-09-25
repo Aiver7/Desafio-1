@@ -49,3 +49,23 @@ void descomprimirRLE(const unsigned char* comprimido, int longComp,
         }
     }
 }
+
+//  FUNCIONES LZ78
+
+struct EntradaDiccionario {
+    unsigned char* cadena;
+    int longitud;
+};
+
+void descomprimirLZ78(const unsigned char* comprimido, int longComp,
+                      unsigned char* salida, int& longSalida) {
+    EntradaDiccionario diccionario[65536];
+    int tamDiccionario = 0;
+    longSalida = 0;
+    int i = 0;
+
+    // Entrada vacía para índice 0
+    diccionario[0].cadena = new unsigned char[1];
+    diccionario[0].cadena[0] = '\0';
+    diccionario[0].longitud = 0;
+    tamDiccionario++;
