@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstring>
 #include <fstream>
+#include <string>
 
 using namespace std;
 
@@ -30,21 +31,13 @@ void desencriptar(const unsigned char* entrada, int longitud,
 void descomprimirRLE(const unsigned char* comprimido, int longComp,
                      unsigned char* salida, int& longSalida) {
     longSalida = 0;
-    int i = 0;
 
-    while (i < longComp) {
-        int num = 0;
-        while (i < longComp && comprimido[i] >= '0' && comprimido[i] <= '9') {
-            num = num * 10 + (comprimido[i] - '0');
-            i++;
-        }
+    // Procesar de a 3 en 3 bytes
+    for (int i = 0; i + 2 < longComp; i += 3) {
+        unsigned char count = comprimido[i+1];  // segundo byte = cantidad
+        unsigned char c     = comprimido[i+2];  // tercer byte = carácter
 
-        if (i >= longComp) break;
-
-        unsigned char c = comprimido[i];
-        i++;
-
-        for (int j = 0; j < num; j++) {
+        for (int j = 0; j < count; j++) {
             salida[longSalida++] = c;
         }
     }
@@ -62,7 +55,6 @@ void descomprimirLZ78(const unsigned char* comprimido, int longComp,
     EntradaDiccionario diccionario[65536];
     int tamDiccionario = 0;
     longSalida = 0;
-    int i = 0;
 
     // Entrada vacía para índice 0
     diccionario[0].cadena = new unsigned char[1];
@@ -70,14 +62,11 @@ void descomprimirLZ78(const unsigned char* comprimido, int longComp,
     diccionario[0].longitud = 0;
     tamDiccionario++;
 
-    while (i < longComp - 2) {
+    // Procesar de a 3 en 3 bytes (TERNAS)
+    for (int i = 0; i + 2 < longComp; i += 3) {
+        // Primeros 2 bytes = índice, tercer byte = carácter
         int indice = (comprimido[i] << 8) | comprimido[i + 1];
-        i += 2;
-
-        if (i >= longComp) break;
-
-        unsigned char nuevoChar = comprimido[i];
-        i++;
+        unsigned char nuevoChar = comprimido[i + 2];
 
         if (indice == 0) {
             salida[longSalida++] = nuevoChar;
@@ -95,3 +84,20 @@ void descomprimirLZ78(const unsigned char* comprimido, int longComp,
             }
 
             salida[longSalida++] = nuevoChar;
+
+            int nuevaLong = longPrefijo + 1;
+            diccionario[tamDiccionario].cadena = new unsigned char[nuevaLong + 1];
+            for (int j = 0; j < longPrefijo; j++) {
+                diccionario[tamDiccionario].cadena[j] = diccionario[indice].cadena[j];
+            }
+            diccionario[tamDiccionario].cadena[longPrefijo] = nuevoChar;
+            diccionario[tamDiccionario].cadena[nuevaLong] = '\0';
+            diccionario[tamDiccionario].longitud = nuevaLong;
+            tamDiccionario++;
+        }
+    }
+
+    for (int j = 0; j < tamDiccionario; j++) {
+        delete[] diccionario[j].cadena;
+    }
+}
