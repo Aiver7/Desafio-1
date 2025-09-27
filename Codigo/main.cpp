@@ -45,59 +45,140 @@ void descomprimirRLE(const unsigned char* comprimido, int longComp,
 
 //  FUNCIONES LZ78
 
-struct EntradaDiccionario {
-    unsigned char* cadena;
-    int longitud;
-};
-
 void descomprimirLZ78(const unsigned char* comprimido, int longComp,
                       unsigned char* salida, int& longSalida) {
-    EntradaDiccionario diccionario[65536];
-    int tamDiccionario = 0;
     longSalida = 0;
+    if (!comprimido || !salida || longComp <= 0) return;
+    if (longComp % 3 != 0) return; // debe ser múltiplo de 3 (ternas)
 
-    // Entrada vacía para índice 0
-    diccionario[0].cadena = new unsigned char[1];
-    diccionario[0].cadena[0] = '\0';
-    diccionario[0].longitud = 0;
-    tamDiccionario++;
+    // Reservar diccionario en HEAP (evita stack grande)
+    unsigned char** dicadenas = new unsigned char*[65536];
+    int*            dilong    = new int[65536];
 
-    // Procesar de a 3 en 3 bytes (TERNAS)
+    // Inicializar a valores seguros
+    for (int i = 0; i < 65536; ++i) { dicadenas[i] = nullptr; dilong[i] = 0; }
+
+    int  tamDiccionario = 0; // entradas reales: 1..tamDiccionario (0 = vacío)
+    bool ok = true;
+
     for (int i = 0; i + 2 < longComp; i += 3) {
-        // Primeros 2 bytes = índice, tercer byte = carácter
-        int indice = (comprimido[i] << 8) | comprimido[i + 1];
-        unsigned char nuevoChar = comprimido[i + 2];
+        unsigned short prefijo = (static_cast<unsigned short>(comprimido[i]) << 8) |
+                                 static_cast<unsigned short>(comprimido[i + 1]);
+        unsigned char  nuevo   = comprimido[i + 2];
 
-        if (indice == 0) {
-            salida[longSalida++] = nuevoChar;
+        // prefijo válido: 0..tamDiccionario
+        if (prefijo > static_cast<unsigned short>(tamDiccionario)) { ok = false; break; }
 
-            diccionario[tamDiccionario].cadena = new unsigned char[2];
-            diccionario[tamDiccionario].cadena[0] = nuevoChar;
-            diccionario[tamDiccionario].cadena[1] = '\0';
-            diccionario[tamDiccionario].longitud = 1;
+        int longPref = (prefijo == 0) ? 0 : dilong[prefijo];
+        int nuevaLen = longPref + 1;
+
+        // Emitir prefijo (si existe) controlando MAX_BUFFER
+        if (prefijo != 0) {
+            for (int j = 0; j < longPref; ++j) {
+                if (longSalida >= MAX_BUFFER) { ok = false; goto liberar; }
+                salida[longSalida++] = dicadenas[prefijo][j];
+            }
+        }
+        // Emitir nuevo carácter
+        if (longSalida >= MAX_BUFFER) { ok = false; goto liberar; }
+        salida[longSalida++] = nuevo;
+
+        // Agregar nueva entrada al diccionario (si hay espacio)
+        if (tamDiccionario < 65535) {
+            int idx = tamDiccionario + 1;      // primera libre real
+            dilong[idx] = nuevaLen;
+            dicadenas[idx] = new unsigned char[nuevaLen]; // sin '\0'
+
+            // Copiar prefijo (si existe)
+            if (prefijo != 0) {
+                for (int j = 0; j < longPref; ++j) {
+                    dicadenas[idx][j] = dicadenas[prefijo][j];
+                }
+            }
+            // Añadir carácter final
+            dicadenas[idx][nuevaLen - 1] = nuevo;
+
             tamDiccionario++;
-        } else if (indice < tamDiccionario) {
-            int longPrefijo = diccionario[indice].longitud;
+        }
+        // Si se alcanza 65535, se puede seguir sin agregar nuevas entradas.
+    }
 
-            for (int j = 0; j < longPrefijo; j++) {
-                salida[longSalida++] = diccionario[indice].cadena[j];
+liberar:
+    // Liberar TODAS las cadenas reales (1..tamDiccionario). La 0 nunca reservó.
+    for (int j = 1; j <= tamDiccionario; ++j) {
+        delete[] dicadenas[j];
+        dicadenas[j] = nullptr;
+        dilong[j] = 0;
+    }
+    // Liberar tablas del diccionario
+    delete[] dicadenas;
+    delete[] dilong;
+
+    (void)ok; // opcional: puedes usar 'ok' para reportar error si lo deseas
+}
+
+//  BUSCAR PARÁMETROS
+bool buscarParametros(const unsigned char* encriptado, int longEnc,
+                      const char* fragmento, int longFrag,
+                      int& n_out, unsigned char& k_out, int& metodo_out) {
+    if (!encriptado || longEnc <= 0 || !fragmento || longFrag <= 0) return false;
+
+    // Buffers grandes en HEAP (evitar stack overflow)
+    unsigned char* desencriptado = new unsigned char[longEnc]; // igual al cifrado
+    unsigned char* descomprimido = new unsigned char[MAX_BUFFER];
+
+    for (int n = 1; n < 8; n++) {
+        for (int k = 0; k < 256; k++) {
+            // Desencriptar
+            desencriptar(encriptado, longEnc, desencriptado, n, (unsigned char)k);
+
+            // Intento RLE
+            int longDesc = 0;
+            descomprimirRLE(desencriptado, longEnc, descomprimido, longDesc);
+            if (longDesc >= longFrag) {
+                bool coincide = false;
+                for (int pos = 0; pos <= longDesc - longFrag && !coincide; pos++) {
+                    bool ok = true;
+                    for (int j = 0; j < longFrag; j++) {
+                        if (descomprimido[pos + j] != (unsigned char)fragmento[j]) { ok = false; break; }
+                    }
+                    if (ok) coincide = true;
+                }
+                if (coincide) {
+                    n_out = n;
+                    k_out = (unsigned char)k;
+                    metodo_out = 1;
+                    delete[] desencriptado;
+                    delete[] descomprimido;
+                    return true;
+                }
             }
 
-            salida[longSalida++] = nuevoChar;
-
-            int nuevaLong = longPrefijo + 1;
-            diccionario[tamDiccionario].cadena = new unsigned char[nuevaLong + 1];
-            for (int j = 0; j < longPrefijo; j++) {
-                diccionario[tamDiccionario].cadena[j] = diccionario[indice].cadena[j];
+            // Intento LZ78
+            longDesc = 0;
+            descomprimirLZ78(desencriptado, longEnc, descomprimido, longDesc);
+            if (longDesc >= longFrag) {
+                bool coincide = false;
+                for (int pos = 0; pos <= longDesc - longFrag && !coincide; pos++) {
+                    bool ok = true;
+                    for (int j = 0; j < longFrag; j++) {
+                        if (descomprimido[pos + j] != (unsigned char)fragmento[j]) { ok = false; break; }
+                    }
+                    if (ok) coincide = true;
+                }
+                if (coincide) {
+                    n_out = n;
+                    k_out = (unsigned char)k;
+                    metodo_out = 2;
+                    delete[] desencriptado;
+                    delete[] descomprimido;
+                    return true;
+                }
             }
-            diccionario[tamDiccionario].cadena[longPrefijo] = nuevoChar;
-            diccionario[tamDiccionario].cadena[nuevaLong] = '\0';
-            diccionario[tamDiccionario].longitud = nuevaLong;
-            tamDiccionario++;
         }
     }
 
-    for (int j = 0; j < tamDiccionario; j++) {
-        delete[] diccionario[j].cadena;
-    }
+    delete[] desencriptado;
+    delete[] descomprimido;
+    return false;
 }
