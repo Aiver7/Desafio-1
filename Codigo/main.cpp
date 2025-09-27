@@ -9,7 +9,6 @@ using namespace std;
 const int MAX_BUFFER = 1000000;
 
 //  FUNCIONES DE ENCRIPTACIÓN
-
 unsigned char rotarIzquierda(unsigned char byte, int n) {
     return (byte << n) | (byte >> (8 - n));
 }
@@ -27,7 +26,6 @@ void desencriptar(const unsigned char* entrada, int longitud,
 }
 
 //  FUNCIONES RLE
-
 void descomprimirRLE(const unsigned char* comprimido, int longComp,
                      unsigned char* salida, int& longSalida) {
     longSalida = 0;
@@ -44,7 +42,6 @@ void descomprimirRLE(const unsigned char* comprimido, int longComp,
 }
 
 //  FUNCIONES LZ78
-
 void descomprimirLZ78(const unsigned char* comprimido, int longComp,
                       unsigned char* salida, int& longSalida) {
     longSalida = 0;
@@ -181,4 +178,36 @@ bool buscarParametros(const unsigned char* encriptado, int longEnc,
     delete[] desencriptado;
     delete[] descomprimido;
     return false;
+}
+
+//  LECTURA DE ARCHIVOS
+bool leerArchivoEncriptado(const char* nombreArchivo, unsigned char* buffer, int& longitud) {
+    ifstream archivo(nombreArchivo, ios::binary);
+    if (!archivo) {
+        cout << "Error: No se pudo abrir " << nombreArchivo << endl;
+        return false;
+    }
+    archivo.seekg(0, ios::end);
+    longitud = (int)archivo.tellg();
+    archivo.seekg(0, ios::beg);
+
+    if (longitud <= 0 || longitud > MAX_BUFFER) {
+        cout << "Error: Archivo vacio o demasiado grande" << endl;
+        return false;
+    }
+    archivo.read((char*)buffer, longitud);
+    archivo.close();
+    return true;
+}
+bool leerArchivoPista(const char* nombreArchivo, char* buffer, int& longitud) {
+    ifstream archivo(nombreArchivo);
+    if (!archivo) {
+        cout << "Error: No se pudo abrir " << nombreArchivo << endl;
+        return false;
+    }
+    archivo.getline(buffer, MAX_BUFFER);
+    longitud = (int)strlen(buffer);
+    archivo.close();
+
+    return true;
 }
