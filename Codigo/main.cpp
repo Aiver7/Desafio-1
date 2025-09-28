@@ -222,4 +222,84 @@ bool leerArchivoPista(const char* nombreArchivo, char* buffer, int& longitud) {
 
     return true;
 }
+//  PROCESO DE LOS CASOS
+void procesarCaso(int numeroCaso) {
 
+    // Construir nombres de archivos
+    char nombreEncriptado[64], nombrePista[64];
+    sprintf(nombreEncriptado, "Encriptado%d.txt", numeroCaso);
+    sprintf(nombrePista,      "pista%d.txt",      numeroCaso);
+
+    unsigned char* encriptado = new unsigned char[MAX_BUFFER];
+    char* pista = new char[MAX_BUFFER];
+
+    int longEnc = 0, longPista = 0;
+
+    if (!leerArchivoEncriptado(nombreEncriptado, encriptado, longEnc)) {
+        delete[] encriptado; delete[] pista;
+        return;
+    }
+    if (!leerArchivoPista(nombrePista, pista, longPista)) {
+        delete[] encriptado; delete[] pista;
+        return;
+    }
+
+    // Buscar parámetros
+    int n = 0, metodo = 0;
+    unsigned char k = 0;
+
+    if (buscarParametros(encriptado, longEnc, pista, longPista, n, k, metodo)) {
+        cout << "\n ** " << nombreEncriptado << " ** \n";
+        cout << "Compresion: " << (metodo == 1 ? "RLE" : "LZ78") << "\n";
+        cout << "Rotacion: " << n << "\n";
+        cout << "Key : 0x" << hex << (int)k << "\n\n";
+
+        // Desencriptar
+        unsigned char* desencriptado = new unsigned char[longEnc];
+        desencriptar(encriptado, longEnc, desencriptado, n, k);
+
+        // Descomprimir
+        unsigned char* mensajeOriginal = new unsigned char[MAX_BUFFER];
+        int longOriginal = 0;
+
+        if (metodo == 1) {
+            descomprimirRLE(desencriptado, longEnc, mensajeOriginal, longOriginal);
+        } else {
+            descomprimirLZ78(desencriptado, longEnc, mensajeOriginal, longOriginal);
+        }
+
+        // Mostrar resultados
+        for (int i = 0; i < longOriginal; ++i) cout << (char)mensajeOriginal[i];
+
+        // Guardar resultado en archivo
+        char nombreResultado[64];
+        sprintf(nombreResultado, "Resultado%d.txt", numeroCaso);
+        ofstream archivoResultado(nombreResultado);
+        for (int i = 0; i < longOriginal; i++) archivoResultado << mensajeOriginal[i];
+        archivoResultado.close();
+        cout << "\n \n Resultado guardado en: " << nombreResultado << endl;
+
+        delete[] mensajeOriginal;
+        delete[] desencriptado;
+    }
+
+    delete[] encriptado;
+    delete[] pista;
+}
+
+//  PROGRAMA PRINCIPAL
+int main() {
+    int numArchivos;
+    cout << "Numero de archivos a evaluar: ";
+    cin >> numArchivos;
+    if (numArchivos <= 0 || numArchivos > 100) {
+        cout << "Numero de archivos incorrecto" << endl;
+        return 1;
+    }
+
+    for (int i = 1; i <= numArchivos; i++) {
+        procesarCaso(i);
+    }
+
+    return 0;
+}
