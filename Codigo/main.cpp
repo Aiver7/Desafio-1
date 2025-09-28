@@ -1,47 +1,58 @@
 #include <iostream>
-#include <cstring>
 #include <fstream>
 #include <string>
+#include <cstring>
+#include <cstdio>
 
 using namespace std;
 
 //  CONSTANTES
 const int MAX_BUFFER = 1000000;
 
-//  FUNCIONES DE ENCRIPTACIÓN
+//  ROTACIONES
 unsigned char rotarIzquierda(unsigned char byte, int n) {
-    return (byte << n) | (byte >> (8 - n));
+    unsigned int x = static_cast<unsigned int>(byte);
+    unsigned int res = ((x << n) | (x >> (8 - n))) & 0xFFu;
+    return static_cast<unsigned char>(res);
 }
-
 unsigned char rotarDerecha(unsigned char byte, int n) {
-    return (byte >> n) | (byte << (8 - n));
+    unsigned int x = static_cast<unsigned int>(byte);
+    unsigned int res = ((x >> n) | (x << (8 - n))) & 0xFFu;
+    return static_cast<unsigned char>(res);
 }
 
+//  DESENCRIPTAR (XOR K - rotación derecha n)
 void desencriptar(const unsigned char* entrada, int longitud,
                   unsigned char* salida, int n, unsigned char k) {
+    if (!entrada || !salida || longitud <= 0) return;
+    if (n <= 0 || n >= 8) return; // n en 1..7
     for (int i = 0; i < longitud; i++) {
-        unsigned char temp = entrada[i] ^ k;
+        unsigned char temp = static_cast<unsigned char>(entrada[i] ^ k);
         salida[i] = rotarDerecha(temp, n);
     }
 }
 
-//  FUNCIONES RLE
+// RLE ([basura][cantidad][caracter])
 void descomprimirRLE(const unsigned char* comprimido, int longComp,
                      unsigned char* salida, int& longSalida) {
     longSalida = 0;
+    if (!comprimido || !salida || longComp <= 0) return;
+    if (longComp % 3 != 0) return; // debe ser múltiplo de 3
 
-    // Procesar de a 3 en 3 bytes
     for (int i = 0; i + 2 < longComp; i += 3) {
-        unsigned char count = comprimido[i+1];  // segundo byte = cantidad
-        unsigned char c     = comprimido[i+2];  // tercer byte = carácter
+        // unsigned char basura = comprimido[i]; // se ignora
+        unsigned char count = comprimido[i + 1];  // segundo byte = cantidad
+        unsigned char c     = comprimido[i + 2];  // tercer byte = carácter
+        if (count == 0) continue;
 
         for (int j = 0; j < count; j++) {
+            if (longSalida >= MAX_BUFFER) return; // evitar overflow de salida
             salida[longSalida++] = c;
         }
     }
 }
 
-//  FUNCIONES LZ78
+// LZ78 ([prefijo alto][prefijo bajo][caracter])
 void descomprimirLZ78(const unsigned char* comprimido, int longComp,
                       unsigned char* salida, int& longSalida) {
     longSalida = 0;
@@ -211,3 +222,4 @@ bool leerArchivoPista(const char* nombreArchivo, char* buffer, int& longitud) {
 
     return true;
 }
+
